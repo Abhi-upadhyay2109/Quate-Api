@@ -66,7 +66,7 @@ describe("Quote API Server", () => {
       }
       const res = await agent.get("/api/quote"); 
       expect(res.statusCode).toBe(429);
-      expect(res.body.error).toContain("Too many quote requests");
+      expect(res.body.error).toMatch(/^Rate limit exceeded\. Try again in \d+ seconds\.$/);
     });
   });
 });

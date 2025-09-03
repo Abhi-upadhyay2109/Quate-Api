@@ -12,14 +12,14 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
-app.use(logger);
+app.use(logger); 
 
 // Session setup
 app.use(
   session({
     secret: "secret123",
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true, 
     cookie: {
       maxAge: 60 * 1000, 
       httpOnly: true,
@@ -32,16 +32,28 @@ app.use(
 const loginLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 3,
-  message: { error: "Too many login attempts" },
+  handler: (req, res) => {
+    const retrySecs = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
+    res.status(429).json({
+      error: `Too many login attempts. Try again in ${retrySecs} seconds.`,
+      retrySecs,
+    });
+  },
 });
 
 const quoteLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
-  message: { error: "Too many quote requests" },
+  handler: (req, res) => {
+    const retrySecs = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
+    res.status(429).json({
+      error: `Rate limit exceeded. Try again in ${retrySecs} seconds.`,
+      retrySecs,
+    });
+  },
 });
 
-// Swagger setup
+// Swagger setup (unchanged)
 const swaggerOptions = {
   definition: {
     openapi: "3.0.0",
@@ -68,14 +80,6 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
  *     responses:
  *       200:
  *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Login successful
  *       400:
  *         description: Already logged in
  *       429:
@@ -85,14 +89,9 @@ app.post("/api/login", loginLimiter, (req, res) => {
   if (req.session.isLoggedIn) {
     return res.status(400).json({ error: "Already logged in" });
   }
-
   req.session.isLoggedIn = true;
-  req.session.save((err) => {
-    if (err) {
-      return res.status(500).json({ error: "Session save failed" });
-    }
-    res.json({ message: "Login successful" });
-  });
+  req.session.username = req.body.username || "guest";
+  res.json({ message: "Login successful" });
 });
 
 /**
@@ -105,14 +104,6 @@ app.post("/api/login", loginLimiter, (req, res) => {
  *     responses:
  *       200:
  *         description: Random quote returned
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 quote:
- *                   type: string
- *                   example: "The only limit to our realization of tomorrow is our doubts of today."
  *       401:
  *         description: Unauthorized (login required)
  *       429:
@@ -126,7 +117,6 @@ app.get("/api/quote", quoteLimiter, (req, res) => {
   const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
   res.json({ quote: randomQuote });
 });
-
 
 app.use(notFoundHandler);
 
