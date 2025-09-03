@@ -8,7 +8,7 @@ describe("Quote API Server", () => {
     
     agent = request.agent(app);
   });
-
+   
   test("GET /api-docs should return swagger docs page", async () => {
     const res = await request(app).get("/api-docs/").redirects(1);
     expect(res.statusCode).toBe(200);
